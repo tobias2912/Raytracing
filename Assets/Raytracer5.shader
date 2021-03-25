@@ -140,6 +140,14 @@ Shader "Unlit/SingleColor"
 		return lerp(vec3(1.0,1.0,1.0), vec3(0.5,0.7,1.0), t);
 	}
 
+	void getsphere(int i, out sphere sph)
+	{
+		if (i == 0) { sph.center = vec3( 0, 0, -1); sph.radius = 0.5; sph.materialtype = 0; sph.matproperties.xyz = vec3(0.8, 0.3, 0.3);}
+		if (i == 1) { sph.center = vec3( 0,-1, -1); sph.radius = 100; sph.materialtype = 0; sph.matproperties.xyz = vec3(0.8, 0.8, 0.0);}
+	}
+	
+	static const uint n_spheres = 2;
+
 
 	static const uint n_spheres = 2;
 	//list of spheres
