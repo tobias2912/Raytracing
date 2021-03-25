@@ -45,7 +45,7 @@ Shader "Unlit/SingleColor"
 	{
 		float x = i.uv.x;
 		float y = i.uv.y;
-		col3 col = col3(0,1,0);
+		col3 col = col3(x,y,0);
 
 		return fixed4(col,1); 
 	}
