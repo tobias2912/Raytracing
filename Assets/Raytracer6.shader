@@ -42,8 +42,30 @@ Shader "Unlit/SingleColor"
 	static const vec3 horizontal = vec3(4.0, 0.0, 0.0);
 	static const vec3 vertical = vec3(0.0, 2.0, 0.0);
 	static const vec3 origin = vec3(0.0, 0.0, 0.0);
+	
 	static const uint n_spheres = 2;
 	
+	struct camera
+	{
+		vec3 origin;
+		vec3 lower_left_corner;
+		vec3 horizontal;
+		vec3 vertical;
+
+		ray get_ray(float x, float y) {
+			return ray::from(origin, lower_left_corner + x*horizontal + y*vertical);
+		}
+
+		static camera create_camera(){
+			camera c;
+			c.origin = vec3(0.0, 0.0, 0.0);
+			c.lower_left_corner = vec3(-2.0, -1.0, -1.0);
+			c.horizontal = vec3(4.0, 0.0, 0.0);
+			c.vertical = vec3(0.0, 2.0, 0.0);
+		}
+
+		}
+	};
 
 	struct ray
 	{
@@ -162,12 +184,16 @@ Shader "Unlit/SingleColor"
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	fixed4 frag(v2f i) : SV_Target
     {
-        float x = i.uv.x;
-        float y = i.uv.y;
-
-		ray r = ray::from(origin, lower_left_corner + x*horizontal + y*vertical);
-		vec3 p = r.point_at(2.0);
-		vec3 vec = color(r);
+		vec3 col(0, 0, 0);
+		for (int s=0; s < 100, s++) {
+			float x = float(i.uv.x + ...) / float(200);
+			float y = float(i.uv.y + ...) / float(100);
+			
+			ray r = camera.get_ray(x, y)
+			vec3 p = r.point_at(2.0);
+			vec3 vec = color(r);
+		}
+        
 
         col3 col = col3(vec[0], vec[1], vec[2]);
 
