@@ -158,7 +158,7 @@ Shader "Unlit/SingleColor"
 			// 1 = metal, 0 = lambertian
 			if (materialType == 1) {
 				vec3 reflected = reflect(normalize(r.direction), rec.normal);
-				scattered = ray::from(rec.p, reflected);
+				scattered = ray::from(rec.p, reflected + fuzz*random_in_unit_sphere(r.direction));
 				attenuation = albedo;
 				return (dot(scattered.direction, rec.normal) > 0);
 			
