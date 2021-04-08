@@ -45,6 +45,25 @@ Shader "Unlit/SingleColor"
 	
 	static const uint n_spheres = 2;
 	
+	
+
+	struct ray
+	{
+		vec3 origin;
+		vec3 direction;
+
+		static ray from(vec3 origin, vec3 direction) {
+			ray r;
+			r.origin = origin;
+			r.direction = direction;
+
+			return r;
+		}
+
+		vec3 point_at(float t) {
+			return origin + t*direction;
+		}
+	};
 	struct camera
 	{
 		vec3 origin;
@@ -64,25 +83,6 @@ Shader "Unlit/SingleColor"
 			c.vertical = vec3(0.0, 2.0, 0.0);
 		}
 
-		}
-	};
-
-	struct ray
-	{
-		vec3 origin;
-		vec3 direction;
-
-		static ray from(vec3 origin, vec3 direction) {
-			ray r;
-			r.origin = origin;
-			r.direction = direction;
-
-			return r;
-		}
-
-		vec3 point_at(float t) {
-			return origin + t*direction;
-		}
 	};
 
 	struct hit_record{
@@ -165,7 +165,10 @@ Shader "Unlit/SingleColor"
 		}
 		return hit_anything;
 	}
-
+	float rand(in float2 uv){
+		float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233)*2.0)) * 43758.5453));
+		return abs(noise.x + noise.y) * 0.5;
+	}
 	vec3 color(ray r){
 		hit_record rec;
 		if (intersect_list(r, 0.0, 1000000000.0, rec)){
@@ -178,23 +181,21 @@ Shader "Unlit/SingleColor"
 		}
 	}
 
-	
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	fixed4 frag(v2f i) : SV_Target
     {
-		vec3 col(0, 0, 0);
-		for (int s=0; s < 100, s++) {
-			float x = float(i.uv.x + ...) / float(200);
-			float y = float(i.uv.y + ...) / float(100);
+		camera cam = camera::create_camera();
+		int ns = 100;
+		vec3 vec(0.0, 0.0, 0.0);
+		for (int s=0; s < ns; s++) {
+			float x = i.uv.x + rand(float2(i.uv)) / 200.0;
+			float y = i.uv.y + rand(float2(i.uv)) / 100.0;
 			
-			ray r = camera.get_ray(x, y)
+			ray r = cam.get_ray(x, y);
 			vec3 p = r.point_at(2.0);
-			vec3 vec = color(r);
+			vec += color(r);
 		}
-        
-
+		vec /= float(ns);
         col3 col = col3(vec[0], vec[1], vec[2]);
 
         return fixed4(col,1); 
