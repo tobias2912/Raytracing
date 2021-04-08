@@ -43,7 +43,7 @@ Shader "Unlit/SingleColor"
 	static const vec3 vertical = vec3(0.0, 2.0, 0.0);
 	static const vec3 origin = vec3(0.0, 0.0, 0.0);
 	
-	static const uint n_spheres = 2;
+	static const uint n_spheres = 4;
 	
 	
 
@@ -87,25 +87,41 @@ Shader "Unlit/SingleColor"
 	};
 
 
-
 	struct hit_record{
 		float t;
 		vec3 p;
 		vec3 normal;
+		int sph_index;
 	};
+
+	float rand(in float2 uv){
+		float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233)*2.0)) * 43758.5453));
+		return abs(noise.x + noise.y) * 0.5;
+	}
+
+	//get a random point inside a  sphere
+	vec3 random_in_unit_sphere(vec3 direction) {
+		vec3 p;
+		float r =dot(direction, direction);
+		do {
+			r +=2.5;
+			p = 2.0*vec3(rand(r+0.1), rand(r+0.2), rand(r+0.3)) - vec3(1.0,1.0,1.0);
+		}while (dot(p,p) >= 1.0);
+		return p;
+	}
 
 	struct sphere{
 		vec3 center;
 		float radius;
-		int metalType;
+		int materialType;
 		vec3 albedo; 
 		float fuzz; 
 
-		static sphere from(vec3 center, float radius, int metalType, vec3 albedo, float fuzz){
+		static sphere from(vec3 center, float radius, int materialType, vec3 albedo, float fuzz){
 			sphere s;
 			s.center = center;
 			s.radius = radius;
-			s.metalType = metalType;
+			s.materialType = materialType;
 			s.albedo = albedo;
 			s.fuzz = fuzz;
 			return s;
@@ -124,6 +140,7 @@ Shader "Unlit/SingleColor"
 					rec.t = temp;
 					rec.p = r.point_at(rec.t);
 					rec.normal = (rec.p - center)/radius;
+					rec.sph_index = 0;
 					return true;
 				}
 				temp = (-b + sqrt(b*b-a*c))/a;
@@ -131,16 +148,17 @@ Shader "Unlit/SingleColor"
 					rec.t = temp;
 					rec.p = r.point_at(rec.t);
 					rec.normal = (rec.p - center)/radius;
+					rec.sph_index = 0;
 					return true;
 				}
 			}
 			return false;
 		}
 
-		bool scatter(ray r, hit_record record, out vec3 attenuation, out ray scattered) {
+		bool scatter(ray r, hit_record rec, out vec3 attenuation, out ray scattered) {
 			// 1 = metal, 0 = lambertian
-			if (metalType == 1) {
-				vec3 reflected = reflect(normalize(r.direction)), rec.normal);
+			if (materialType == 1) {
+				vec3 reflected = reflect(normalize(r.direction), rec.normal);
 				scattered = ray::from(rec.p, reflected);
 				attenuation = albedo;
 				return (dot(scattered.direction, rec.normal) > 0);
@@ -159,10 +177,10 @@ Shader "Unlit/SingleColor"
 	//simulere en liste
 	void getsphere(int i, out sphere sph)
 	{
-		if (i == 0) { sph.center = vec3( 0, 0, -1); sph.radius = 0.5; sph.materialType = 0; sph.albedo = vec3(0.8, 0.3, 0.3); }
-		if (i == 1) { sph.center = vec3( 0,-100.5, -1); sph.radius = 100; sph.materialType = 0; sph.albedo = vec3(0.8, 0.8, 0.0); }
-		if (i == 2) { sph.center = vec3( 1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.6, 0.2); }
-		if (i == 3) { sph.center = vec3( -1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.8, 0.8); }
+		if (i == 0) { sph.center = vec3( 0, 0, -1); sph.radius = 0.5; sph.materialType = 0; sph.albedo = vec3(0.8, 0.3, 0.3);sph.fuzz = 0.0; }
+		if (i == 1) { sph.center = vec3( 0,-100.5, -1); sph.radius = 100; sph.materialType = 0; sph.albedo = vec3(0.8, 0.8, 0.0);sph.fuzz = 0.0; }
+		if (i == 2) { sph.center = vec3( 1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.6, 0.2);sph.fuzz = 1.0; }
+		if (i == 3) { sph.center = vec3( -1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.8, 0.8);sph.fuzz = 0.3; }
 	}
 
 	float hit_sphere(vec3 center, float radius, ray r)
@@ -178,6 +196,7 @@ Shader "Unlit/SingleColor"
 			return (-b - sqrt(discriminant)) / (2.0*a);
 		}
 	}
+
 	//hitable_list
 	bool intersect_list(ray r, float t_min, float t_max, out hit_record rec){
 		hit_record temp_rec;
@@ -189,26 +208,17 @@ Shader "Unlit/SingleColor"
 			if(sph.intersect(r, t_min, closest_so_far, temp_rec)){
 				hit_anything = true;
 				closest_so_far = temp_rec.t;
+				temp_rec.sph_index = i;
 				rec = temp_rec;
 			}
 		}
 		return hit_anything;
 	}
-	float rand(in float2 uv){
-		float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233)*2.0)) * 43758.5453));
-		return abs(noise.x + noise.y) * 0.5;
-	}
 
-	//get a random point inside a  sphere
-	vec3 random_in_unit_sphere(vec3 direction) {
-		vec3 p;
-		float r =dot(direction, direction);
-		do {
-			r +=2.5;
-			p = 2.0*vec3(rand(r+0.1), rand(r+0.2), rand(r+0.3)) - vec3(1.0,1.0,1.0);
-		}while (dot(p,p) >= 1.0);
-		return p;
-	}
+
+
+
+
 
 
 	vec3 background(ray r) {
@@ -229,13 +239,16 @@ Shader "Unlit/SingleColor"
 
 		while (foundhit && (maxC>0)){
 			maxC--;
-			vec3 raddir = random_in_unit_sphere(r.direction);
-			r = ray::from(rec.p, raddir);
+			sphere sph;
+			getsphere(rec.sph_index, sph);
+			sph.scatter(r, rec, attenuation, scattered);
+			r = scattered;
 			accumCol = 0.5*accumCol;
 			foundhit = intersect_list(r, 0.001, 1000000000.0, rec);
 		}
 
 		if (foundhit && maxC == 0){
+
 			return col3(0,0,0);
 		} else {
 			return accumCol*background(r);
@@ -243,20 +256,7 @@ Shader "Unlit/SingleColor"
 		
 	}
 
-	// vec3 color(ray r){
-	// 	hit_record rec;
-	// 	if (intersect_list(r, 0.0, 1000000000.0, rec)){
-	// 		vec3 target = rec.p + rec.normal + random_in_unit_sphere();
-	// 		return 0.5*color(ray(rec.p, target - rec.p))
-	// 	}
-	// 	else{
-	// 		vec3 unit_direction = normalize(r.direction);
-	// 		float t = 0.5*(unit_direction.y+1);
-	// 		return (1.0-t)*vec3(1.0,1.0,1.0) + t*vec3(0.5,0.5,1.0);
-	// 	}
-	// }
 
-	
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	fixed4 frag(v2f i) : SV_Target
