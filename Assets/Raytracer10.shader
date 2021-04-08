@@ -1,4 +1,5 @@
-﻿// Fra https://docs.unity3d.com/Manual/SL-VertexFragmentShaderExamples.html
+﻿
+// Fra https://docs.unity3d.com/Manual/SL-VertexFragmentShaderExamples.html
 //https://msdn.microsoft.com/en-us/library/windows/desktop/bb509640(v=vs.85).aspx
 //https://msdn.microsoft.com/en-us/library/windows/desktop/ff471421(v=vs.85).aspx
 // rand num generator http://gamedev.stackexchange.com/questions/32681/random-number-hlsl
@@ -42,7 +43,6 @@ Shader "Unlit/SingleColor"
 	static const vec3 vertical = vec3(0.0, 2.0, 0.0);
 	static const vec3 origin = vec3(0.0, 0.0, 0.0);
 	
-	static const uint n_spheres = 4;
 	
 	
 
@@ -71,15 +71,22 @@ Shader "Unlit/SingleColor"
 		vec3 vertical;
 
 		ray get_ray(float x, float y) {
-			return ray::from(origin, lower_left_corner + x*horizontal + y*vertical);
+			return ray::from(origin, lower_left_corner + x*horizontal + y*vertical-origin);
 		}
 
-		static camera create_camera(){
+		static camera create_camera(float vfov, float aspect, vec3 lookfrom, vec3 lookat, vec3 vup){
 			camera c;
-			c.origin = vec3(0.0, 0.0, 0.0);
-			c.lower_left_corner = vec3(-2.0, -1.0, -1.0);
-			c.horizontal = vec3(4.0, 0.0, 0.0);
-			c.vertical = vec3(0.0, 2.0, 0.0);
+			float theta = vfov*3.142/180;
+			float half_height = tan(theta/2);
+			float half_width = aspect * half_height;
+			c.origin = lookfrom;
+			vec3 w = normalize(lookfrom-lookat);
+			vec3 u = normalize(cross(vup,w));
+			vec3 v = cross(w,u);
+			//c.lower_left_corner = vec3(-half_width, -half_height, -1.0);
+			c.lower_left_corner = lookfrom - half_width*u - half_height*v -w;
+			c.horizontal = 2*half_width*u;
+			c.vertical = 2*half_height*v;
 			return c;
 		}
 
@@ -109,20 +116,43 @@ Shader "Unlit/SingleColor"
 		return p;
 	}
 
+	bool refract(vec3 v, vec3 n, float ni_over_nt, out vec3 refracted){
+		vec3 uv = normalize(v);
+		float dt = dot(uv,n);
+		float discriminant = 1.0 - ni_over_nt*ni_over_nt*(1-dt*dt);
+		if (discriminant > 0){
+			refracted = ni_over_nt*(uv-n*dt) - n*sqrt(discriminant);
+			return true;
+		}
+		else{
+			return true;
+		}
+
+
+	}
+
+	float schlick(float cosine, float refractive_index) {
+		float r0 = (1.0 - refractive_index) / (1.0 + refractive_index);
+		r0 = r0 * r0;
+		return r0 + (1.0 - r0) * pow((1.0 - cosine), 5);
+	}
+
 	struct sphere{
 		vec3 center;
 		float radius;
 		int materialType;
 		vec3 albedo; 
 		float fuzz; 
+		float ref_idx;
 
-		static sphere from(vec3 center, float radius, int materialType, vec3 albedo, float fuzz){
+		static sphere from(vec3 center, float radius, int materialType, vec3 albedo, float fuzz, float ref_idx){
 			sphere s;
 			s.center = center;
 			s.radius = radius;
 			s.materialType = materialType;
 			s.albedo = albedo;
 			s.fuzz = fuzz;
+			s.ref_idx = ref_idx;
 			return s;
 		}
 
@@ -155,32 +185,69 @@ Shader "Unlit/SingleColor"
 		}
 
 		bool scatter(ray r, hit_record rec, out vec3 attenuation, out ray scattered) {
-			// 1 = metal, 0 = lambertian
+			// 2=lambertian, 1 = metal, 3 = Dielectrics
 			if (materialType == 1) {
 				vec3 reflected = reflect(normalize(r.direction), rec.normal);
 				scattered = ray::from(rec.p, reflected + fuzz*random_in_unit_sphere(r.direction));
 				attenuation = albedo;
 				return (dot(scattered.direction, rec.normal) > 0);
 			
-			} else {
+			}
+			if(materialType == 2) {
 				vec3 target = rec.p + rec.normal + random_in_unit_sphere(r.direction);
 				scattered = ray::from(rec.p, target-rec.p); 
 				attenuation = albedo; 
 				return true; 
 			}
+			//Dielectrics
+			if(materialType == 3){
+				vec3 outward_normal;
+				vec3 reflected = reflect(r.direction, rec.normal);
+				float ni_over_nt;
+				attenuation = vec3(1.0,1.0,1.0);
+				vec3 refracted;
+				float reflect_prob;
+				float cosine;
+				if (dot(r.direction, rec.normal) > 0){
+					outward_normal = -rec.normal;
+					ni_over_nt = ref_idx;
+					cosine = ref_idx * dot(r.direction, rec.normal) /length(r.direction);
+				}else{
+					outward_normal = rec.normal;
+					ni_over_nt = 1.0 /ref_idx;
+					cosine = -dot(r.direction, rec.normal) /length(r.direction);
+				}
+				if (refract(r.direction, outward_normal, ni_over_nt, refracted)){
+					reflect_prob = schlick(cosine, ref_idx);
+				}else{
+					scattered = ray::from(rec.p, reflected); 
+					reflect_prob = 1.0;
+				}
+				if (rand(r.direction)< reflect_prob){
+					scattered = ray::from(rec.p, reflected);
+				}
+				else{
+					scattered = ray::from(rec.p, refracted);
+				}
+				return true;
+			}
+			return true;
 		}
 	};
 	
 
+	static const uint n_spheres = 4;
 
 	//simulere en liste
 	void getsphere(int i, out sphere sph)
 	{
-		if (i == 0) { sph.center = vec3( 0, 0, -1); sph.radius = 0.5; sph.materialType = 0; sph.albedo = vec3(0.8, 0.3, 0.3);sph.fuzz = 0.0; }
-		if (i == 1) { sph.center = vec3( 0,-100.5, -1); sph.radius = 100; sph.materialType = 0; sph.albedo = vec3(0.8, 0.8, 0.0);sph.fuzz = 0.0; }
-		if (i == 2) { sph.center = vec3( 1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.6, 0.2);sph.fuzz = 1.0; }
-		if (i == 3) { sph.center = vec3( -1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.8, 0.8);sph.fuzz = 0.3; }
+		if (i == 0) { sph.center = vec3( 0, 0, -1); sph.radius = 0.5; sph.materialType = 2; sph.albedo = vec3(0.1, 0.2, 0.5);sph.fuzz = 0.0; sph.ref_idx = 1.0; }
+		if (i == 1) { sph.center = vec3( 0,-100.5, -1); sph.radius = 100; sph.materialType = 2; sph.albedo = vec3(0.8, 0.8, 0.0);sph.fuzz = 0.0; sph.ref_idx = 1.0;}
+		if (i == 2) { sph.center = vec3( 1, 0, -1); sph.radius = 0.5; sph.materialType = 1; sph.albedo = vec3(0.8, 0.6, 0.2);sph.fuzz = 0.3; sph.ref_idx = 1.0;}
+		if (i == 3) { sph.center = vec3( -1, 0, -1); sph.radius = 0.5; sph.materialType = 3; sph.albedo = vec3(0.0, 0.0, 0.0);sph.fuzz = 0.0; sph.ref_idx = 1.5;}
+		if (i == 4) { sph.center = vec3( -1, 0, -1); sph.radius = -0.45; sph.materialType = 3; sph.albedo = vec3(0.0, 0.0, 0.0);sph.fuzz = 0.0; sph.ref_idx = 1.5;}
 	}
+
 
 	float hit_sphere(vec3 center, float radius, ray r)
 	{
@@ -214,12 +281,6 @@ Shader "Unlit/SingleColor"
 		return hit_anything;
 	}
 
-
-
-
-
-
-
 	vec3 background(ray r) {
 		float t = 0.5 * (normalize(r.direction).y + 1.0);
 		return lerp(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
@@ -243,7 +304,6 @@ Shader "Unlit/SingleColor"
 			sph.scatter(r, rec, attenuation, scattered);
 			r = scattered;
 			accumCol *= attenuation;
-
 			accumCol = 0.5*accumCol;
 			foundhit = intersect_list(r, 0.001, 1000000000.0, rec);
 		}
@@ -262,7 +322,7 @@ Shader "Unlit/SingleColor"
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	fixed4 frag(v2f i) : SV_Target
     {
-		camera cam = camera::create_camera();
+		camera cam = camera::create_camera(50, 200.0/100.0, vec3(-2,2,1), vec3(0,0,-1), vec3(0,1,0));
 		int ns = 100;
 		vec3 vec = vec3(0.0, 0.0, 0.0);
 		for (int s=0; s < ns; s++) {

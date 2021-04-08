@@ -178,7 +178,8 @@ Shader "Unlit/SingleColor"
 		}
 
 		bool scatter(ray r, hit_record rec, out vec3 attenuation, out ray scattered) {
-			// 1 = metal, 0 = lambertian
+			//bug: denne gir rare farger på Dielectrics, vet ikke hvorfor
+			// 2=lambertian, 1 = metal, 3 = Dielectrics
 			if (materialType == 1) {
 				vec3 reflected = reflect(normalize(r.direction), rec.normal);
 				scattered = ray::from(rec.p, reflected + fuzz*random_in_unit_sphere(r.direction));
@@ -205,7 +206,6 @@ Shader "Unlit/SingleColor"
 					outward_normal = -rec.normal;
 					ni_over_nt = ref_idx;
 					cosine = ref_idx * dot(r.direction, rec.normal) /length(r.direction);
-					//cosine = sqrt(1.0 - ref_idx * ref_idx * (1.0 - cosine * cosine));
 				}else{
 					outward_normal = rec.normal;
 					ni_over_nt = 1.0 /ref_idx;
@@ -219,6 +219,9 @@ Shader "Unlit/SingleColor"
 					reflect_prob = 1.0;
 				}
 				if (rand(r.direction)< reflect_prob){
+					scattered = ray::from(rec.p, reflected);
+				}
+				else{
 					scattered = ray::from(rec.p, refracted);
 				}
 				return true;
@@ -300,6 +303,8 @@ Shader "Unlit/SingleColor"
 			getsphere(rec.sph_index, sph);
 			sph.scatter(r, rec, attenuation, scattered);
 			r = scattered;
+			accumCol *= attenuation;
+
 			accumCol = 0.5*accumCol;
 			foundhit = intersect_list(r, 0.001, 1000000000.0, rec);
 		}
