@@ -170,6 +170,7 @@ Shader "Unlit/SingleColor"
 		float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233)*2.0)) * 43758.5453));
 		return abs(noise.x + noise.y) * 0.5;
 	}
+	
 	vec3 color(ray r){
 		hit_record rec;
 		if (intersect_list(r, 0.0, 1000000000.0, rec)){

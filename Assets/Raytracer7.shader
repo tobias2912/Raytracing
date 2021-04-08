@@ -171,33 +171,40 @@ Shader "Unlit/SingleColor"
 		return abs(noise.x + noise.y) * 0.5;
 	}
 
-	vec3 random_in_unit_sphere() {
+	//get a random point inside a  sphere
+	vec3 random_in_unit_sphere(vec3 direction) {
 		vec3 p;
-		float f = length(p);
+		float r =dot(direction, direction);
 		do {
-			p = 2.0*vec3(rand(f), rand(f), rand(f)) - vec3(1,1,1);
-		}while (f >= 1.0);
+			r +=2.5;
+			p = 2.0*vec3(rand(r+0.1), rand(r+0.2), rand(r+0.3)) - vec3(1.0,1.0,1.0);
+		}while (dot(p,p) >= 1.0);
 		return p;
 	}
+	vec3 background(ray r) {
+		float t = 0.5 * (normalize(r.direction).y + 1.0);
+		return lerp(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
+	}
+
 
 	col3 color(ray r){
 		hit_record rec;
 		vec3 accumCol = {1,1,1};
 
-		bool foundhit = intersect_list(r, 0.0, 1000000000.0, rec);
+		bool foundhit = intersect_list(r, 0.001, 1000000000.0, rec);
 		int maxC = 7;
 		while (foundhit && (maxC>0)){
 			maxC--;
-			vec3 raddir = random_in_unit_sphere();
+			vec3 raddir = random_in_unit_sphere(r.direction);
 			r = ray::from(rec.p, raddir);
 			accumCol = 0.5*accumCol;
-			foundhit = intersect_list(r, 0.0, 1000000000.0, rec);
+			foundhit = intersect_list(r, 0.001, 1000000000.0, rec);
 		}
 
 		if (foundhit && maxC == 0){
 			return col3(0,0,0);
 		} else {
-			return accumCol;
+			return accumCol*background(r);
 		}
 		
 	}
@@ -232,7 +239,7 @@ Shader "Unlit/SingleColor"
 			vec += color(r);
 		}
 		vec /= float(ns);
-        col3 col = col3(vec[0], vec[1], vec[2]);
+        col3 col = col3(sqrt(vec[0]), sqrt(vec[1]), sqrt(vec[2]));
 
         return fixed4(col,1); 
     }	
