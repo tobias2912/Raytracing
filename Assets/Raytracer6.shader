@@ -81,6 +81,7 @@ Shader "Unlit/SingleColor"
 			c.lower_left_corner = vec3(-2.0, -1.0, -1.0);
 			c.horizontal = vec3(4.0, 0.0, 0.0);
 			c.vertical = vec3(0.0, 2.0, 0.0);
+			return c;
 		}
 
 	};
@@ -186,10 +187,10 @@ Shader "Unlit/SingleColor"
     {
 		camera cam = camera::create_camera();
 		int ns = 100;
-		vec3 vec(0.0, 0.0, 0.0);
+		vec3 vec = vec3(0.0, 0.0, 0.0);
 		for (int s=0; s < ns; s++) {
-			float x = i.uv.x + rand(float2(i.uv)) / 200.0;
-			float y = i.uv.y + rand(float2(i.uv)) / 100.0;
+			float x = i.uv.x + rand(1.1) / 200.0;
+			float y = i.uv.y + rand(1.1) / 100.0;
 			
 			ray r = cam.get_ray(x, y);
 			vec3 p = r.point_at(2.0);
