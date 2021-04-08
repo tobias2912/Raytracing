@@ -189,8 +189,8 @@ Shader "Unlit/SingleColor"
 		int ns = 100;
 		vec3 vec = vec3(0.0, 0.0, 0.0);
 		for (int s=0; s < ns; s++) {
-			float x = i.uv.x + rand(1.1) / 200.0;
-			float y = i.uv.y + rand(1.1) / 100.0;
+			float x = i.uv.x + rand(float2(float(s),float(s))) / 200.0;
+			float y = i.uv.y + rand(float2(float(s),float(s))) / 100.0;
 			
 			ray r = cam.get_ray(x, y);
 			vec3 p = r.point_at(2.0);
